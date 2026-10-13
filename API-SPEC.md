@@ -98,6 +98,7 @@ API 서버 동작 확인.
 |---|---|---|
 | `404 Not Found` | 해당 `id`의 할 일이 없음 | `{ "detail": "Task not found" }` |
 | `422 Unprocessable Content` | 입력 규칙 위반 | FastAPI 기본 검증 오류 형식 (`detail` 배열) |
+| `503 Service Unavailable` | DB에 접속할 수 없음 (T11 이후) | `{ "detail": "Database unavailable" }` |
 
 ## 단계별 저장 방식
 | 단계 | 저장 위치 | API 재시작 시 |
