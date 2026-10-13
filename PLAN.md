@@ -107,6 +107,11 @@
 ## 실행 기준
 T01~T04: python3 -m http.server 5500 --bind 127.0.0.1 --directory frontend
 T05~T11: 가상환경에서 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+개발 편의(2026-10-13 사용자 요청 추가): 위 uvicorn 하나로 화면(http://127.0.0.1:8000/)과 API(/api)를 함께 제공한다.
+  backend/main.py가 frontend/를 StaticFiles로 / 아래에 연결하며 /api·/docs가 우선한다. 5500번 정적 서버 방식도 계속 사용할 수 있다.
+  확인: /, styles.css, app.js 200, /api/health·/api/tasks·/docs 200, 없는 경로 404, /../.env 등 경로 우회 6종 404(.env 노출 없음),
+  화면이 상대 경로 /api/tasks로 등록·조회하고 API 목록과 일치(시험 행 삭제).
+  5장 배포에서는 PRD대로 Web 서버의 Nginx가 화면을 제공한다(T14).
 실제 존재하는 파일을 확인한 뒤 명령을 실행한다.
 ## 기록
 각 작업에 변경 파일, 실행 명령, 실제 확인 결과, 남은 오류를 기록한다.
