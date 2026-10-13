@@ -61,6 +61,22 @@ h2 {
   font-size: 0.9rem;
 }
 
+.storage-error {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #f1b0ab;
+  border-radius: 6px;
+  background: #fdecea;
+  color: #a1251b;
+  font-size: 0.9rem;
+}
+
+.task-form button:disabled,
+.task-form input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .task-count {
   display: inline-block;
   min-width: 1.6em;
