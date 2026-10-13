@@ -13,14 +13,56 @@
     <p id="storage-error" class="storage-error" role="alert" hidden></p>
 
     <form id="task-form" class="task-form" novalidate>
-      <label for="task-title" class="visually-hidden">할 일 제목</label>
-      <input id="task-title" type="text" placeholder="할 일 제목 (1~100자)" autocomplete="off">
-      <button type="submit">등록</button>
+      <div class="form-row">
+        <label for="task-title" class="visually-hidden">할 일 제목</label>
+        <input id="task-title" type="text" placeholder="할 일 제목 (1~100자)" autocomplete="off">
+        <button type="submit">등록</button>
+      </div>
+      <div class="form-row">
+        <label class="field-label">
+          우선순위
+          <select id="task-priority">
+            <option value="HIGH">높음</option>
+            <option value="NORMAL" selected>보통</option>
+            <option value="LOW">낮음</option>
+          </select>
+        </label>
+        <label class="field-label">
+          마감일
+          <input id="task-due-date" type="date">
+        </label>
+      </div>
+      <label for="task-description" class="visually-hidden">설명</label>
+      <textarea id="task-description" rows="2" placeholder="설명 (선택, 최대 2000자)"></textarea>
     </form>
     <p id="form-error" class="form-error" role="alert"></p>
 
     <section>
       <h2>할 일 목록 <span id="task-count" class="task-count">0</span></h2>
+
+      <div class="filter-bar">
+        <label for="filter-query" class="visually-hidden">제목 검색</label>
+        <input id="filter-query" type="search" placeholder="제목 검색" autocomplete="off">
+        <label class="field-label">
+          상태
+          <select id="filter-status">
+            <option value="">전체</option>
+            <option value="TODO">할 일</option>
+            <option value="DOING">진행 중</option>
+            <option value="DONE">완료</option>
+          </select>
+        </label>
+        <label class="field-label">
+          우선순위
+          <select id="filter-priority">
+            <option value="">전체</option>
+            <option value="HIGH">높음</option>
+            <option value="NORMAL">보통</option>
+            <option value="LOW">낮음</option>
+          </select>
+        </label>
+      </div>
+
       <p id="empty-message" class="empty-message">등록된 할 일이 없습니다.</p>
       <ul id="task-list" class="task-list"></ul>
     </section>

@@ -25,19 +25,54 @@ h2 {
 
 .task-form {
   display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
-.task-form input {
-  flex: 1;
-  padding: 10px 12px;
-  font-size: 1rem;
-  border: 1px solid #c8ccd2;
-  border-radius: 6px;
+.form-row,
+.filter-bar,
+.task-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
-.task-form input[aria-invalid="true"] {
-  border-color: #d93025;
+.task-form input,
+.task-form select,
+.task-form textarea,
+.filter-bar input,
+.filter-bar select {
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.95rem;
+  border: 1px solid #c8ccd2;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.form-row #task-title,
+.filter-bar #filter-query {
+  flex: 1;
+  min-width: 160px;
+}
+
+.task-form textarea,
+.task-edit-description {
+  width: 100%;
+  resize: vertical;
+}
+
+.field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.filter-bar {
+  margin-bottom: 12px;
 }
 
 .task-form button {
@@ -182,4 +217,81 @@ h2 {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+.task-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.task-description {
+  margin: 6px 0 0;
+  color: #444;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.task-meta {
+  margin: 4px 0 0;
+  color: #777;
+  font-size: 0.8rem;
+}
+
+.badge {
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.priority-high {
+  background: #fde2e1;
+  color: #b42318;
+}
+
+.priority-normal {
+  background: #e2e6ec;
+  color: #444;
+}
+
+.priority-low {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.overdue {
+  background: #d93025;
+  color: #fff;
+  font-weight: 600;
+}
+
+.task-list li.is-overdue .task-meta {
+  color: #d93025;
+  font-weight: 600;
+}
+
+.task-edit-fields {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.task-edit-description,
+.task-edit-priority,
+.task-edit-due-date {
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.9rem;
+  border: 1px solid #c8ccd2;
+  border-radius: 6px;
 }
