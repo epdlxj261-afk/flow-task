@@ -29,8 +29,14 @@
   - 함께 수정: 수정 중 다른 항목 변경·검색 시 입력 중인 값이 사라지던 문제.
   - 사용자 브라우저 확인(2026-10-13): 어제 마감 지연 표시·완료 시 해제, 필터 중 해당 항목만 수정·삭제, 검색·필터 AND, 이전 데이터 기본값 표시 정상. 남은 오류 없음.
 ## 3장: API
-- [ ] T05: API-SPEC.md 작성, FastAPI /api/health 구현.
+- [x] T05: API-SPEC.md 작성, FastAPI /api/health 구현.
   확인: curl로 200과 status=ok.
+  기록(2026-10-13): 변경 파일 API-SPEC.md, backend/__init__.py, backend/main.py, requirements.txt, .gitignore.
+  - 준비: python3 -m venv .venv, .venv/bin/python -m pip install fastapi uvicorn (fastapi 0.143.0, uvicorn 0.54.0, Python 3.14.4).
+  - 실행: .venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+  - curl http://127.0.0.1:8000/api/health → 200, {"status":"ok"}. /docs 200. /api/tasks는 아직 404(T06 범위).
+  - API-SPEC 결정: id는 서버 발급 정수, created_at은 ISO 8601 UTC, 지연 여부는 프런트엔드가 로컬 날짜로 계산.
+  - 남은 오류 없음.
 - [ ] T06: 메모리 기반 /api/tasks GET과 POST.
   확인: /docs에서 등록 후 조회. 입력 위반은 422.
 - [ ] T07: PATCH·DELETE와 필터 구현.
