@@ -79,8 +79,15 @@
     (2) 실패 시 MariaDB가 SQL 문장을 출력해 새 비밀번호가 노출됨(실제 계정에는 쓰이지 않음) → SQL에 평문 대신 비밀번호 해시 사용, 사용자 존재 여부를 먼저 확인하도록 스크립트 수정.
   - 참고: mariadb 클라이언트가 --ssl-verify-server-cert 비활성 경고를 출력함. 로컬 접속이라 영향 없음, T12 서버 분리 시 TLS 검토.
   - 남은 오류 없음.
-- [ ] T10: backend/database.py, models.py, init_db.py 생성.
+- [x] T10: backend/database.py, models.py, init_db.py 생성.
   확인: python -m backend.init_db 실행 후 tasks 테이블 확인.
+  기록(2026-10-13): 변경 파일 backend/database.py·models.py·init_db.py(신규), requirements.txt.
+  - 패키지 추가: SQLAlchemy 2.1.4(DB 조작), PyMySQL 1.2.3(MariaDB 드라이버), python-dotenv 1.2.4(.env 읽기).
+  - 실행: .venv/bin/python -m backend.init_db → "tasks: 새로 만들었습니다.", 재실행 시 "이미 있습니다. 변경하지 않았습니다."(create_all checkfirst, 삭제·변경 없음).
+  - SHOW CREATE TABLE: id int AUTO_INCREMENT PK, title varchar(100), description varchar(2000) DEFAULT '', status enum(TODO,DOING,DONE) DEFAULT TODO, priority enum(HIGH,NORMAL,LOW) DEFAULT NORMAL, due_date date NULL, created_at datetime(UTC), InnoDB utf8mb4.
+  - 제약 확인(롤백 트랜잭션, 시험 후 0행): 한글 100자 제목·이모지 2000자 설명 저장, 101자 제목·2001자 설명 1406 거절, 없는 상태·우선순위 1265 거절(sql_mode STRICT_TRANS_TABLES).
+  - 참고: 롤백한 INSERT로 AUTO_INCREMENT가 증가해 첫 id가 1이 아닐 수 있음(API-SPEC상 문제 없음).
+  - 남은 오류 없음.
 - [ ] T11: API 메모리 저장을 DB로 교체.
   확인: 등록한 행을 SQL로 조회. API 재시작 후 데이터 유지.
 ## 5장: 서버 분리
