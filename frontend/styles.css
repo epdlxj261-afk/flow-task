@@ -96,7 +96,7 @@ h2 {
   font-size: 0.9rem;
 }
 
-.storage-error {
+.api-error {
   margin: 0 0 16px;
   padding: 10px 12px;
   border: 1px solid #f1b0ab;

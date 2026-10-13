@@ -1,17 +1,28 @@
 """Task Flow API.
 
-T07: 메모리 저장 방식으로 할 일 목록 조회(필터 포함)·등록·부분 수정·삭제를 제공한다.
+메모리 저장 방식으로 할 일 목록 조회(필터 포함)·등록·부분 수정·삭제를 제공한다.
 메모리 단계이므로 API를 재시작하면 데이터가 사라진다.
+T08: 개발용 정적 서버(5500번)의 화면이 API(8000번)를 호출할 수 있도록 CORS를 허용한다.
 """
 
 from datetime import datetime, timezone
 from threading import Lock
 
 from fastapi import FastAPI, HTTPException, Query, Response, status
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.schemas import Priority, Status, Task, TaskCreate, TaskUpdate
 
 app = FastAPI(title="Task Flow API")
+
+# 개발 단계에서만 필요한 설정이다. 5장에서 Nginx가 화면과 /api를 같은 주소로 제공하면 쓰이지 않는다.
+DEV_FRONTEND_ORIGINS = ["http://127.0.0.1:5500", "http://localhost:5500"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=DEV_FRONTEND_ORIGINS,
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Content-Type"],
+)
 
 # 메모리 저장소. 등록 순서(id 오름차순)로 보관한다.
 tasks: list[Task] = []
