@@ -4,7 +4,7 @@ import re
 from datetime import date, datetime
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
+from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints, field_validator
 
 Status = Literal["TODO", "DOING", "DONE"]
 Priority = Literal["HIGH", "NORMAL", "LOW"]
@@ -38,6 +38,27 @@ class TaskCreate(BaseModel):
     description: Description = ""
     priority: Priority = "NORMAL"
     due_date: DueDate | None = None
+
+
+class TaskUpdate(BaseModel):
+    """부분 수정 요청. 보낸 필드만 바꾸며, 보냈는지는 model_fields_set으로 구분한다."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    title: Title | None = None
+    description: Description | None = None
+    status: Status | None = None
+    priority: Priority | None = None
+    # due_date만 null을 허용한다. null을 보내면 마감일을 지운다.
+    due_date: DueDate | None = None
+
+    @field_validator("title", "description", "status", "priority", mode="before")
+    @classmethod
+    def reject_null(cls, value: object) -> object:
+        # 기본값 None은 검사하지 않으므로, 이 검사는 클라이언트가 null을 직접 보낸 경우에만 동작한다.
+        if value is None:
+            raise ValueError("null is not allowed")
+        return value
 
 
 class Task(BaseModel):
