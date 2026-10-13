@@ -68,7 +68,17 @@
   - 통합 시험 28건 통과(응답 없는 API → 약 10초 뒤 빨간 안내·버튼 복구, 복구 후 등록 성공 포함).
   - 사용자 브라우저 재확인(2026-10-13): API 중지 시 약 10초 뒤 빨간 안내, 재시작 후 등록 정상, 화면과 curl 목록 일치. 남은 오류 없음.
 ## 4장: DB
-- [ ] T09: MariaDB 전용 사용자·DB와 .env 준비. 접속 확인.
+- [x] T09: MariaDB 전용 사용자·DB와 .env 준비. 접속 확인.
+  기록(2026-10-13): 변경 파일 scripts/setup_local_db.sh, .env.example(신규). .env는 Git 제외(.gitignore).
+  - MariaDB 11.8.6 설치·실행 중(127.0.0.1:3306) 확인. sudo가 필요해 사용자가 ./scripts/setup_local_db.sh 실행.
+  - DB task_flow(utf8mb4, 기존 DB라 collation은 utf8mb4_uca1400_ai_ci 유지), 사용자 task_flow_app@localhost·@127.0.0.1.
+  - 권한: task_flow.*에 SELECT, INSERT, UPDATE, DELETE, CREATE, INDEX, ALTER만 부여(DROP 제외).
+  - .env 권한 600, 비밀번호는 무작위 생성·화면 미출력.
+  - 접속 확인: .env 값으로 접속 성공(CURRENT_USER task_flow_app@localhost, SELECT 1), 잘못된 비밀번호 1045 거절, mysql DB 접근 1044 거절, 보이는 DB는 information_schema·task_flow뿐, 테이블 0개.
+  - 진행 중 문제: (1) 이전에 만든 task_flow_app@localhost가 있어 CREATE USER 실패 → 사용자 동의 후 DROP USER 뒤 재실행.
+    (2) 실패 시 MariaDB가 SQL 문장을 출력해 새 비밀번호가 노출됨(실제 계정에는 쓰이지 않음) → SQL에 평문 대신 비밀번호 해시 사용, 사용자 존재 여부를 먼저 확인하도록 스크립트 수정.
+  - 참고: mariadb 클라이언트가 --ssl-verify-server-cert 비활성 경고를 출력함. 로컬 접속이라 영향 없음, T12 서버 분리 시 TLS 검토.
+  - 남은 오류 없음.
 - [ ] T10: backend/database.py, models.py, init_db.py 생성.
   확인: python -m backend.init_db 실행 후 tasks 테이블 확인.
 - [ ] T11: API 메모리 저장을 DB로 교체.
