@@ -98,13 +98,81 @@ h2 {
 }
 
 .task-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   padding: 12px 14px;
   margin-bottom: 8px;
   background: #fff;
   border: 1px solid #e2e6ec;
+  border-left: 4px solid #9aa3af;
   border-radius: 6px;
+}
+
+.task-list li.status-doing {
+  border-left-color: #2563eb;
+}
+
+.task-list li.status-done {
+  border-left-color: #16a34a;
+}
+
+.task-list li.status-done .task-title {
+  color: #888;
+  text-decoration: line-through;
+}
+
+.task-title {
+  flex: 1;
+  min-width: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.task-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.task-actions button,
+.task-status {
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  border: 1px solid #c8ccd2;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.task-actions button:hover {
+  background: #f0f2f5;
+}
+
+.task-actions button[data-action="delete"] {
+  color: #d93025;
+}
+
+.task-edit-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 1rem;
+  border: 1px solid #c8ccd2;
+  border-radius: 6px;
+}
+
+.task-edit-input[aria-invalid="true"] {
+  border-color: #d93025;
+}
+
+.task-edit-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.task-edit-error:empty {
+  display: none;
 }
 
 .visually-hidden {
