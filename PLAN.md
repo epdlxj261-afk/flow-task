@@ -105,7 +105,7 @@
   - 진행 중 문제(로컬 WSL): .env의 DB_PASSWORD만 바뀌고 DB 계정 비밀번호는 그대로여서 1045 Access denied → API 503.
     사용자가 sudo mariadb에서 ALTER USER로 계정 비밀번호를 .env 값에 맞춤 → 접속·SELECT 1 성공, API(8001) /api/health·/api/tasks·/ 200 확인.
   - 미확인: T09에서 남긴 서버 간 TLS 적용 여부.
-- [ ] T13: App 서버 코드·가상환경·환경변수·systemd 구성.
+- [x] T13: App 서버 코드·가상환경·환경변수·systemd 구성.
   확인: App에서 /api/health 응답.
   진행 기록(2026-10-14): 변경 파일 deploy/task-flow-api.service, scripts/setup_app_server.sh(신규). 코드 변경 없음.
   - 구성: 코드 /opt/task-flow, 가상환경 /opt/task-flow/.venv(root 소유), 실행 사용자 taskflow(로그인 불가 시스템 계정),
@@ -116,7 +116,13 @@
     같은 설정을 사용자 서비스로 8001번 실행(.env 없는 코드 사본 + EnvironmentFile): /api/health 200, /api/tasks 200, / 200,
     kill -9 후 자동 재시작(새 PID, health 200), DB_PORT=3999 환경파일로 /api/tasks 503·health 200, 로그에 비밀번호 없음. 시험 서비스 삭제.
   - 시험 한계: 사용자 서비스라 User=taskflow는 빼고, /tmp의 사본을 쓰느라 PrivateTmp·ProtectHome도 뺐다(실제 경로 /opt에서는 해당 없음).
-  - 미확인: 실제 App 서버에서의 설치와 /api/health 응답. 사용자 확인 후 완료 표시.
+  - 설치 확인(2026-10-14, 사용자 완료 보고): App 서버 역할을 WSL(호스트 MZC)에서 수행. sudo git clone 후 setup_app_server.sh 실행.
+    Claude 확인: 배포 커밋 ed8683e, task-flow-api active·enabled, 프로세스 사용자 taskflow, /etc/task-flow root:taskflow 750(일반 사용자 api.env 읽기 불가),
+    /etc/systemd/system/task-flow-api.service = deploy 파일, 8000번 /api/health·/api/tasks·/ 200(127.0.0.1·WSL IP 모두), 브라우저 요청 로그 200.
+  - 진행 중 문제: api.env의 DB_HOST를 다른 IP로 넣었을 때 /api/health 200이지만 /api/tasks 응답 없음(DB 연결 대기). DB_HOST=127.0.0.1로 바꾼 뒤 200.
+    스크립트가 /api/tasks 실패에도 "완료"를 출력하고 curl 대기(5초)가 DB 접속 대기(10초)보다 짧았음 → 15초 대기, 200이 아니면 오류로 종료하도록 수정.
+  - 한계: App과 DB가 같은 WSL(DB_HOST=127.0.0.1)이라 PRD의 서버 분리 상태는 아님. 분리된 DB 서버 연결은 api.env의 DB_HOST 변경·재시작으로 전환.
+  - 참고: 8000번을 서비스가 사용하므로 직접 uvicorn을 8000번으로 띄우려면 sudo systemctl stop task-flow-api 후 실행.
 - [ ] T14: Web 서버 Nginx와 정적 파일·/api 프록시 구성.
   확인: Web 주소로 등록, DB 저장, App 재시작 후 유지.
 ## 실행 기준

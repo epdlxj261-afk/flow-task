@@ -63,8 +63,14 @@ echo "5/5 /api/health 응답을 확인합니다."
 for _ in $(seq 1 20); do
   if curl -fsS -m 2 http://127.0.0.1:8000/api/health >/dev/null 2>&1; then
     echo "  /api/health: $(curl -sS -m 2 http://127.0.0.1:8000/api/health)"
-    # 200이면 DB 접속까지 정상, 503이면 api.env의 DB 접속 정보나 DB 서버 방화벽을 확인한다.
-    echo "  /api/tasks: HTTP $(curl -sS -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/api/tasks)"
+    # DB 접속 대기(PyMySQL 기본 10초)보다 길게 기다려야 503 응답까지 볼 수 있다.
+    tasks_code=$(curl -s -m 15 -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/api/tasks || true)
+    echo "  /api/tasks: HTTP ${tasks_code}"
+    if [ "${tasks_code}" != "200" ]; then
+      echo "오류: 서비스는 실행 중이지만 DB 조회에 실패했습니다. (503·000이면 api.env의 DB_HOST 등과 DB 서버 3306 방화벽을 확인)" >&2
+      echo "  로그: sudo journalctl -u ${SERVICE} -n 50" >&2
+      exit 1
+    fi
     echo "완료: ${SERVICE} 서비스가 실행 중이며 부팅 시 자동 시작됩니다."
     exit 0
   fi
