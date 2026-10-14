@@ -5,24 +5,28 @@ T11: 저장소를 메모리에서 MariaDB로 바꿔, API를 재시작해도 데�
 T08: 개발용 정적 서버(5500번)의 화면이 API(8000번)를 호출할 수 있도록 CORS를 허용한다.
 T14: 화면은 Web 서버의 Nginx(또는 개발용 5500번 정적 서버)가 제공하고, 이 API 서버는 /api만 제공한다.
 T16: 회원가입 API를 제공한다. 비밀번호는 argon2id 해시로만 저장한다.
+T17: 로그인·로그아웃·현재 사용자 API. 서버 세션과 HttpOnly 쿠키로 로그인 상태를 유지한다.
 """
 
+import hashlib
+import secrets
 from collections.abc import Iterator
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from argon2 import PasswordHasher
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from argon2.exceptions import VerificationError
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from backend.database import SessionLocal
-from backend.models import TaskRecord, UserRecord
-from backend.schemas import Priority, SignupRequest, Status, Task, TaskCreate, TaskUpdate, User
+from backend.models import SessionRecord, TaskRecord, UserRecord
+from backend.schemas import Credentials, Priority, Status, Task, TaskCreate, TaskUpdate, User
 
 app = FastAPI(title="Task Flow API")
 
@@ -33,6 +37,8 @@ app.add_middleware(
     allow_origins=DEV_FRONTEND_ORIGINS,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
+    # 5500번 화면이 8000번 API에 로그인 쿠키를 보내고 받을 수 있게 한다. 출처를 목록으로 제한했으므로 안전하다.
+    allow_credentials=True,
 )
 
 
@@ -94,6 +100,52 @@ def to_user(record: UserRecord) -> User:
 
 # argon2id 기본 설정(메모리 64MiB, 반복 3회)으로 해시한다. 해시 문자열에 설정과 salt가 함께 들어간다.
 password_hasher = PasswordHasher()
+# 없는 아이디로 로그인할 때도 같은 시간만큼 검증해, 응답 시간으로 아이디 존재 여부를 알 수 없게 한다.
+DUMMY_PASSWORD_HASH = password_hasher.hash(secrets.token_urlsafe(16))
+
+SESSION_COOKIE = "task_flow_session"
+SESSION_LIFETIME = timedelta(days=7)
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def start_session(db: Session, response: Response, user_id: int) -> None:
+    """세션을 저장하고 쿠키를 발급한다. 호출한 쪽에서 commit한다."""
+    token = secrets.token_urlsafe(32)
+    now = utc_now()
+    db.add(SessionRecord(token_hash=hash_token(token), user_id=user_id, created_at=now, expires_at=now + SESSION_LIFETIME))
+    # 학습용 HTTP 배포라 Secure는 붙이지 않는다. HTTPS를 쓰면 secure=True로 바꾼다.
+    response.set_cookie(
+        SESSION_COOKIE,
+        token,
+        max_age=int(SESSION_LIFETIME.total_seconds()),
+        path="/",
+        httponly=True,
+        samesite="lax",
+    )
+
+
+def get_current_user(
+    db: Session = Depends(get_db),
+    token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+) -> UserRecord:
+    not_authenticated = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    if not token:
+        raise not_authenticated
+    session = db.get(SessionRecord, hash_token(token))
+    if session is None:
+        raise not_authenticated
+    if session.expires_at <= utc_now():
+        # 만료된 세션은 찾은 김에 지운다.
+        db.delete(session)
+        db.commit()
+        raise not_authenticated
+    user = db.get(UserRecord, session.user_id)
+    if user is None:
+        raise not_authenticated
+    return user
 
 
 @app.get("/api/health")
@@ -102,7 +154,7 @@ def health() -> dict[str, str]:
 
 
 @app.post("/api/auth/signup", status_code=status.HTTP_201_CREATED)
-def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> User:
+def signup(payload: Credentials, response: Response, db: Session = Depends(get_db)) -> User:
     username_taken = HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists")
     if db.scalar(select(UserRecord.id).where(UserRecord.username == payload.username)) is not None:
         raise username_taken
@@ -118,8 +170,47 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> User:
         # 동시에 같은 아이디로 가입하면 위 확인을 둘 다 통과할 수 있어, DB의 UNIQUE 제약으로 한 번 더 막는다.
         db.rollback()
         raise username_taken from None
+    # 가입하면 바로 로그인 상태가 된다. (F10)
+    start_session(db, response, record.id)
+    db.commit()
     db.refresh(record)
     return to_user(record)
+
+
+@app.post("/api/auth/login")
+def login(payload: Credentials, response: Response, db: Session = Depends(get_db)) -> User:
+    record = db.scalar(select(UserRecord).where(UserRecord.username == payload.username))
+    try:
+        password_hasher.verify(record.password_hash if record else DUMMY_PASSWORD_HASH, payload.password)
+    except VerificationError:
+        record = None
+    if record is None:
+        # 아이디가 없는 경우와 비밀번호가 틀린 경우를 구분하지 않는다. (F11)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
+    if password_hasher.check_needs_rehash(record.password_hash):
+        # 해시 설정이 바뀌었으면 맞는 비밀번호를 받은 김에 새 설정으로 다시 저장한다.
+        record.password_hash = password_hasher.hash(payload.password)
+    start_session(db, response, record.id)
+    db.commit()
+    return to_user(record)
+
+
+@app.post("/api/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(
+    db: Session = Depends(get_db),
+    token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+) -> Response:
+    if token:
+        db.execute(delete(SessionRecord).where(SessionRecord.token_hash == hash_token(token)))
+        db.commit()
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, samesite="lax")
+    return response
+
+
+@app.get("/api/auth/me")
+def me(user: UserRecord = Depends(get_current_user)) -> User:
+    return to_user(user)
 
 
 @app.get("/api/tasks")

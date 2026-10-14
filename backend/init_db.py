@@ -1,4 +1,4 @@
-"""tasks·users 테이블을 만든다. 실행: python -m backend.init_db
+"""tasks·users·sessions 테이블을 만든다. 실행: python -m backend.init_db
 
 이미 있는 테이블은 지우거나 바꾸지 않고, 없는 테이블만 만든다.
 """

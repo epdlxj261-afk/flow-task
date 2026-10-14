@@ -165,8 +165,22 @@
     동시 가입 5건 → 201 1건·409 4건(500 없음), 할 일 GET·POST·PATCH·DELETE 회귀 정상, API 로그에 비밀번호 없음. 시험 계정 삭제(users 0행).
   - 참고: 가입 후 바로 로그인(F10)은 세션이 필요해 T17에서 추가. 운영 서비스(/opt, 80번)는 T20까지 이전 코드로 동작(users 테이블은 같은 DB에 생성됨).
   - 남은 오류 없음.
-- [ ] T17: sessions 테이블과 로그인·로그아웃·현재 사용자 API(POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me).
+- [x] T17: sessions 테이블과 로그인·로그아웃·현재 사용자 API(POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me).
   확인: 로그인 시 HttpOnly 쿠키 발급, 틀린 아이디·비밀번호 모두 같은 401, me 200/401, 로그아웃 후 같은 쿠키로 401, 만료 세션 401.
+  기록(2026-10-14): 변경 파일 backend/models.py·schemas.py·main.py·init_db.py. 새 패키지 없음(hashlib·secrets 표준 라이브러리).
+  - sessions 테이블: token_hash varchar(64) PK(쿠키 토큰의 SHA-256, 원문 미저장), user_id FK→users ON DELETE CASCADE, created_at, expires_at(+7일).
+    python -m backend.init_db → "sessions: 새로 만들었습니다.", tasks·users 변경 없음.
+  - 토큰 secrets.token_urlsafe(32). 쿠키 task_flow_session: HttpOnly, SameSite=Lax, Path=/, Max-Age 604800, Secure 없음(HTTP 학습용).
+  - 가입 시 바로 세션 발급(F10). 로그인 실패는 아이디 없음·비밀번호 틀림 모두 같은 401, 없는 아이디도 더미 해시로 검증해 응답 시간 차이 제거.
+    만료 세션은 조회 시 401과 함께 삭제. 로그아웃은 세션 삭제+쿠키 삭제, 쿠키 없어도 204.
+  - CORS allow_credentials=True(5500 개발 화면이 쿠키 전송, T19 대비). 출처 목록은 그대로.
+  - 가입·로그인 요청 스키마 이름을 SignupRequest → Credentials로 변경(같은 규칙 공유).
+  - API(8001)+실제 DB 시험 34건 통과: 가입·로그인 쿠키 속성, 본문에 토큰·비밀번호 없음, DB에 토큰 해시만, 만료=생성+7일, 로그인마다 새 토큰,
+    틀린 비밀번호·없는 아이디 같은 401·쿠키 없음, 응답 시간 67ms/63ms, 로그인 422 입력값 미노출, me 401 3종, 로그아웃 204·Max-Age=0·이후 401·DB 삭제,
+    다른 세션 유지, 반복 로그아웃 204, 만료 세션 401·삭제, 사용자 삭제 시 세션 CASCADE, 5500 preflight Allow-Credentials true·다른 출처 400,
+    중복 가입 409·쿠키 없음, 할 일 API 회귀, 로그에 비밀번호·토큰 없음. T16 시험 35건 재통과. 시험 계정·세션 삭제(users 0, sessions 0, tasks 7~10 유지).
+  - 진행 중 문제: 시험 스크립트가 preflight 응답(OK, JSON 아님)을 JSON으로 읽다 중단 → 시험 스크립트만 수정해 재실행.
+  - 남은 오류 없음. 할 일 API 인증 적용은 T18.
 - [ ] T18: tasks에 user_id 추가(기존 행은 NULL로 유지), 할 일 API를 로그인 사용자 범위로 제한.
   확인: 비로그인 401, 두 계정이 서로의 할 일을 목록에서 못 보고 id로 수정·삭제 시 404, 기존 행 삭제 없음·화면 미표시, 기존 필터·검증 회귀 통과.
 - [ ] T19: 프런트엔드 회원가입·로그인 화면, 로그아웃 버튼, 401 시 로그인 화면 전환.

@@ -75,7 +75,9 @@ class Task(BaseModel):
     created_at: datetime
 
 
-class SignupRequest(BaseModel):
+class Credentials(BaseModel):
+    """회원가입·로그인 요청."""
+
     model_config = ConfigDict(extra="forbid", strict=True)
 
     username: Username

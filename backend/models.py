@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Enum, Integer, String
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -43,3 +43,15 @@ class UserRecord(Base):
     # 원문 비밀번호는 저장하지 않는다. argon2id 해시 문자열(약 100자)을 저장한다.
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+class SessionRecord(Base):
+    """로그인 세션. 쿠키에 넣은 무작위 토큰의 SHA-256 해시만 저장해, DB 값만으로는 로그인할 수 없게 한다."""
+
+    __tablename__ = "sessions"
+    __table_args__ = {"mariadb_charset": "utf8mb4"}
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
