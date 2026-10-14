@@ -13,6 +13,11 @@ class TaskRecord(Base):
     __table_args__ = {"mariadb_charset": "utf8mb4"}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # T18: 할 일의 주인. 다중 사용자 전환 전 할 일은 NULL로 남아 어느 사용자에게도 보이지 않는다.
+    # 기존 테이블에는 init_db가 ALTER TABLE로 추가한다.
+    user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     # utf8mb4의 VARCHAR 길이는 바이트가 아닌 문자 수이므로 API의 글자 수 규칙과 같다.
     title: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(String(2000), nullable=False, default="", server_default="")

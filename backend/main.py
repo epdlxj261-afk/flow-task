@@ -6,6 +6,7 @@ T08: 개발용 정적 서버(5500번)의 화면이 API(8000번)를 호출할 수
 T14: 화면은 Web 서버의 Nginx(또는 개발용 5500번 정적 서버)가 제공하고, 이 API 서버는 /api만 제공한다.
 T16: 회원가입 API를 제공한다. 비밀번호는 argon2id 해시로만 저장한다.
 T17: 로그인·로그아웃·현재 사용자 API. 서버 세션과 HttpOnly 쿠키로 로그인 상태를 유지한다.
+T18: 할 일 API는 로그인이 필요하며, 로그인한 사용자의 할 일만 다룬다.
 """
 
 import hashlib
@@ -78,9 +79,10 @@ def to_task(record: TaskRecord) -> Task:
     )
 
 
-def get_record(db: Session, task_id: int) -> TaskRecord:
+def get_record(db: Session, task_id: int, user: UserRecord) -> TaskRecord:
     record = db.get(TaskRecord, task_id)
-    if record is None:
+    # 다른 사용자의 할 일도 없는 할 일과 같이 404로 답해 존재 여부를 알리지 않는다.
+    if record is None or record.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     return record
 
@@ -220,9 +222,10 @@ def list_tasks(
     status_filter: Status | None = Query(default=None, alias="status"),
     priority: Priority | None = None,
     db: Session = Depends(get_db),
+    user: UserRecord = Depends(get_current_user),
 ) -> list[Task]:
-    # 모든 조건을 AND로 적용한다.
-    statement = select(TaskRecord).order_by(TaskRecord.id)
+    # 로그인한 사용자의 할 일에 모든 조건을 AND로 적용한다.
+    statement = select(TaskRecord).where(TaskRecord.user_id == user.id).order_by(TaskRecord.id)
     query = (q or "").strip().lower()
     if query:
         # 기본 정렬 규칙(ai_ci)은 악센트까지 무시하므로, 소문자로 바꾼 뒤 이진 비교해 대소문자만 무시한다.
@@ -238,8 +241,11 @@ def list_tasks(
 
 
 @app.post("/api/tasks", status_code=status.HTTP_201_CREATED)
-def create_task(payload: TaskCreate, db: Session = Depends(get_db)) -> Task:
+def create_task(
+    payload: TaskCreate, db: Session = Depends(get_db), user: UserRecord = Depends(get_current_user)
+) -> Task:
     record = TaskRecord(
+        user_id=user.id,
         title=payload.title,
         description=payload.description,
         status="TODO",
@@ -254,8 +260,13 @@ def create_task(payload: TaskCreate, db: Session = Depends(get_db)) -> Task:
 
 
 @app.patch("/api/tasks/{task_id}")
-def update_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db)) -> Task:
-    record = get_record(db, task_id)
+def update_task(
+    task_id: int,
+    payload: TaskUpdate,
+    db: Session = Depends(get_db),
+    user: UserRecord = Depends(get_current_user),
+) -> Task:
+    record = get_record(db, task_id, user)
     # 보내지 않은 필드는 기존 값을 유지한다.
     changes = payload.model_dump(exclude_unset=True)
     if "due_date" in changes:
@@ -268,8 +279,10 @@ def update_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db)
 
 
 @app.delete("/api/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_task(task_id: int, db: Session = Depends(get_db)) -> Response:
-    record = get_record(db, task_id)
+def delete_task(
+    task_id: int, db: Session = Depends(get_db), user: UserRecord = Depends(get_current_user)
+) -> Response:
+    record = get_record(db, task_id, user)
     db.delete(record)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
