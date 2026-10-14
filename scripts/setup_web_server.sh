@@ -94,10 +94,12 @@ else
   echo "오류: 10초가 지나도 / 가 Task Flow 화면이 아닙니다. sudo nginx -T로 다른 server 설정을 확인하세요." >&2
   exit 1
 fi
-tasks_code=$(curl -s -m 35 -o /dev/null -w '%{http_code}' http://127.0.0.1/api/tasks || true)
-echo "  /api/tasks: HTTP ${tasks_code}"
-if [ "${tasks_code}" != "200" ]; then
-  echo "오류: Nginx는 적용됐지만 /api/tasks가 실패했습니다. (502: App 연결 실패, 503: App의 DB 연결 실패)" >&2
+# 할 일 API는 로그인이 필요하므로(T18), 없는 세션 쿠키로 /api/auth/me를 불러 App·DB까지 전달되는지 확인한다.
+# 401이면 정상(App이 DB에서 세션을 찾지 못함), 502는 App 연결 실패, 503은 App의 DB 연결 실패다.
+api_code=$(curl -s -m 35 -o /dev/null -w '%{http_code}' -b 'task_flow_session=deploy-check' http://127.0.0.1/api/auth/me || true)
+echo "  /api/auth/me(없는 세션): HTTP ${api_code} (401이면 정상)"
+if [ "${api_code}" != "401" ]; then
+  echo "오류: Nginx는 적용됐지만 /api 전달이 실패했습니다. (502: App 연결 실패, 503: App의 DB 연결 실패)" >&2
   echo "  로그: sudo tail -n 20 /var/log/nginx/error.log" >&2
   exit 1
 fi
