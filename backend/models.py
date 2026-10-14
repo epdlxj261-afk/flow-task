@@ -1,4 +1,4 @@
-"""DB 테이블 정의. 필드 규칙은 API-SPEC.md의 Task를 따른다."""
+"""DB 테이블 정의. 필드 규칙은 API-SPEC.md의 Task·User를 따른다."""
 
 from datetime import date, datetime
 
@@ -30,4 +30,16 @@ class TaskRecord(Base):
     )
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # 시간대 정보 없이 UTC 시각을 저장한다. 값은 API가 넣는다.
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+class UserRecord(Base):
+    __tablename__ = "users"
+    __table_args__ = {"mariadb_charset": "utf8mb4"}
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # API가 영문 소문자·숫자·밑줄만 받으므로 DB 비교 규칙(대소문자 무시)과 관계없이 중복 판단이 같다.
+    username: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    # 원문 비밀번호는 저장하지 않는다. argon2id 해시 문자열(약 100자)을 저장한다.
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

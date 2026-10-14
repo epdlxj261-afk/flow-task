@@ -152,9 +152,19 @@
   - PRD 변경: 목적·범위를 다중 사용자로, 제외 기능에서 회원가입 삭제, 데이터에 user_id·사용자 추가, 로그인 방식(서버 세션+HttpOnly 쿠키, 7일) 추가,
     기존 할 일은 삭제하지 않고 어느 사용자에도 연결하지 않음(자동 이전 금지 원칙 유지), HTTPS는 범위 밖, 완료 기준 추가.
   - 남은 확인: API-SPEC.md는 아직 "인증 없음". T16에서 인증 계약을 먼저 작성한다.
-- [ ] T16: API-SPEC.md에 계정·인증 계약 작성, users 테이블과 회원가입 API(POST /api/auth/signup).
+- [x] T16: API-SPEC.md에 계정·인증 계약 작성, users 테이블과 회원가입 API(POST /api/auth/signup).
   비밀번호 해시 패키지 argon2-cffi를 requirements.txt에 추가한다.
   확인: 가입 201, 아이디 형식·비밀번호 길이 422, 중복 아이디 409, DB에 해시만 저장(원문 없음), 응답·로그에 비밀번호 없음.
+  기록(2026-10-14): 변경 파일 API-SPEC.md, requirements.txt, backend/models.py·schemas.py·main.py·init_db.py.
+  - 패키지 추가: argon2-cffi 25.1.0(비밀번호 argon2id 해시, 의존 argon2-cffi-bindings 26.1.0).
+  - API-SPEC: User 데이터, 세션 쿠키 규칙(T17), signup·login·logout·me, 할 일 API 사용자 범위(T18), 401·409 오류 추가. 각 항목에 구현 작업 번호 표시.
+  - users 테이블: id, username varchar(20) UNIQUE, password_hash varchar(255), created_at. python -m backend.init_db → "users: 새로 만들었습니다.", 재실행 시 변경 없음, tasks 4행 유지.
+  - 계정 API(/api/auth/)의 422 응답에서 input 제거(필수 필드 누락 시 요청 전체가 input에 담겨 비밀번호가 응답에 실릴 수 있음). 할 일 API 422 형식은 그대로.
+  - API(8001)+실제 DB 시험 35건 통과: 가입 201·응답에 id·username·created_at만, DB에 $argon2id$ 해시·해시로 원문 검증, 중복 409,
+    경계(아이디 4·20자, 비밀번호 8·128자, 앞뒤 공백 유지, 이모지 8자) 허용, 422 15종(형식·길이·누락·알 수 없는 필드·타입·null·깨진 JSON·빈 본문)에 비밀번호 미노출·미저장,
+    동시 가입 5건 → 201 1건·409 4건(500 없음), 할 일 GET·POST·PATCH·DELETE 회귀 정상, API 로그에 비밀번호 없음. 시험 계정 삭제(users 0행).
+  - 참고: 가입 후 바로 로그인(F10)은 세션이 필요해 T17에서 추가. 운영 서비스(/opt, 80번)는 T20까지 이전 코드로 동작(users 테이블은 같은 DB에 생성됨).
+  - 남은 오류 없음.
 - [ ] T17: sessions 테이블과 로그인·로그아웃·현재 사용자 API(POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me).
   확인: 로그인 시 HttpOnly 쿠키 발급, 틀린 아이디·비밀번호 모두 같은 401, me 200/401, 로그아웃 후 같은 쿠키로 401, 만료 세션 401.
 - [ ] T18: tasks에 user_id 추가(기존 행은 NULL로 유지), 할 일 API를 로그인 사용자 범위로 제한.

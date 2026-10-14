@@ -29,6 +29,10 @@ def validate_due_date(value: str) -> str:
 
 DueDate = Annotated[str, AfterValidator(validate_due_date)]
 
+# 아이디는 영문 소문자·숫자·밑줄 4~20자. 비밀번호는 앞뒤 공백도 그대로 두고 8~128자.
+Username = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_]{4,20}$")]
+Password = Annotated[str, StringConstraints(min_length=8, max_length=128)]
+
 
 class TaskCreate(BaseModel):
     # 알 수 없는 필드(id, status, created_at 포함)는 거절하고, 타입 자동 변환(숫자→문자 등)은 하지 않는다.
@@ -68,4 +72,19 @@ class Task(BaseModel):
     status: Status
     priority: Priority
     due_date: str | None
+    created_at: datetime
+
+
+class SignupRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    username: Username
+    password: Password
+
+
+class User(BaseModel):
+    """사용자 응답. 비밀번호와 해시는 넣지 않는다."""
+
+    id: int
+    username: str
     created_at: datetime

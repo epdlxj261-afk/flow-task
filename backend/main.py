@@ -4,21 +4,25 @@
 T11: 저장소를 메모리에서 MariaDB로 바꿔, API를 재시작해도 데이터가 유지된다.
 T08: 개발용 정적 서버(5500번)의 화면이 API(8000번)를 호출할 수 있도록 CORS를 허용한다.
 T14: 화면은 Web 서버의 Nginx(또는 개발용 5500번 정적 서버)가 제공하고, 이 API 서버는 /api만 제공한다.
+T16: 회원가입 API를 제공한다. 비밀번호는 argon2id 해시로만 저장한다.
 """
 
 from collections.abc import Iterator
 from datetime import date, datetime, timezone
 
+from argon2 import PasswordHasher
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from backend.database import SessionLocal
-from backend.models import TaskRecord
-from backend.schemas import Priority, Status, Task, TaskCreate, TaskUpdate
+from backend.models import TaskRecord, UserRecord
+from backend.schemas import Priority, SignupRequest, Status, Task, TaskCreate, TaskUpdate, User
 
 app = FastAPI(title="Task Flow API")
 
@@ -39,6 +43,15 @@ def database_unavailable(request: Request, exc: OperationalError) -> JSONRespons
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={"detail": "Database unavailable"},
     )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    # 계정 API의 422 응답에는 입력값(input)을 넣지 않는다. 필수 필드 누락 오류는 요청 전체를 input에 담아 비밀번호가 응답에 실릴 수 있다.
+    if request.url.path.startswith("/api/auth/"):
+        errors = [{key: value for key, value in error.items() if key != "input"} for error in exc.errors()]
+        return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, content={"detail": errors})
+    return await request_validation_exception_handler(request, exc)
 
 
 def get_db() -> Iterator[Session]:
@@ -70,9 +83,43 @@ def to_date(value: str | None) -> date | None:
     return date.fromisoformat(value) if value is not None else None
 
 
+def utc_now() -> datetime:
+    # DB에는 시간대 없이 UTC 시각(초 단위)을 저장한다.
+    return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
+
+
+def to_user(record: UserRecord) -> User:
+    return User(id=record.id, username=record.username, created_at=record.created_at.replace(tzinfo=timezone.utc))
+
+
+# argon2id 기본 설정(메모리 64MiB, 반복 3회)으로 해시한다. 해시 문자열에 설정과 salt가 함께 들어간다.
+password_hasher = PasswordHasher()
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/api/auth/signup", status_code=status.HTTP_201_CREATED)
+def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> User:
+    username_taken = HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists")
+    if db.scalar(select(UserRecord.id).where(UserRecord.username == payload.username)) is not None:
+        raise username_taken
+    record = UserRecord(
+        username=payload.username,
+        password_hash=password_hasher.hash(payload.password),
+        created_at=utc_now(),
+    )
+    db.add(record)
+    try:
+        db.commit()
+    except IntegrityError:
+        # 동시에 같은 아이디로 가입하면 위 확인을 둘 다 통과할 수 있어, DB의 UNIQUE 제약으로 한 번 더 막는다.
+        db.rollback()
+        raise username_taken from None
+    db.refresh(record)
+    return to_user(record)
 
 
 @app.get("/api/tasks")

@@ -1,12 +1,12 @@
 # Task Flow API 명세
 
-PRD.md의 요구사항(F01~F09)을 API로 제공하기 위한 계약이다.
+PRD.md의 요구사항(F01~F14)을 API로 제공하기 위한 계약이다.
 구현 순서는 PLAN.md를 따른다. T05는 `/api/health`, T06은 목록 조회·등록, T07은 수정·삭제·필터를 구현한다.
 
 ## 공통
 - 기본 경로: `/api`
 - 요청·응답 형식: JSON (`Content-Type: application/json`), 문자 인코딩 UTF-8
-- 인증: 없음 (로그인 없는 단일 사용자 앱)
+- 인증: T17까지 할 일 API는 인증 없음. T18부터 할 일 API는 로그인 세션 쿠키가 필요하다. (아래 "계정과 인증")
 - 개발 실행 주소: `http://127.0.0.1:8000`
 - 자동 문서: `/docs` (FastAPI Swagger UI)
 
@@ -93,9 +93,65 @@ API 서버 동작 확인.
 - 응답 `204 No Content` (본문 없음)
 - 없는 `id`: `404`
 
+## 계정과 인증 (6장)
+
+### 데이터: User
+| 필드 | 타입 | 규칙 |
+|---|---|---|
+| `id` | integer | 서버가 발급하는 고유 번호 |
+| `username` | string | 영문 소문자·숫자·밑줄 4~20자(`^[a-z0-9_]{4,20}$`), 중복 불가. 대문자·공백은 거절(자동 변환 없음) |
+| `created_at` | string | 가입 시각. ISO 8601 UTC |
+
+- 비밀번호는 8~128자(유니코드 문자 기준)이며 앞뒤 공백도 비밀번호의 일부로 그대로 쓴다.
+- 서버는 비밀번호를 argon2id 해시로만 저장한다. 비밀번호와 해시는 어떤 응답·로그에도 넣지 않는다.
+- 계정 API(`/api/auth/...`)의 `422` 응답에는 입력값(`input`)을 넣지 않는다.
+
+응답 예:
+```json
+{ "id": 1, "username": "alice_01", "created_at": "2026-10-14T05:30:00Z" }
+```
+
+### 로그인 세션 (T17)
+- 로그인·가입에 성공하면 서버가 세션을 저장하고 쿠키 `task_flow_session`을 발급한다.
+- 쿠키 속성: `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age` 7일. 학습용 HTTP 배포라 `Secure`는 붙이지 않는다.
+- 세션은 마지막 로그인부터 7일 동안 유효하다. 만료되거나 로그아웃한 세션의 쿠키는 `401`이다.
+
+### POST /api/auth/signup  (T16, 세션 발급은 T17)
+회원가입한다.
+```json
+{ "username": "alice_01", "password": "correct horse 9" }
+```
+- 응답 `201 Created`: User
+- T17부터 가입과 동시에 로그인 세션 쿠키를 발급한다. (F10)
+- 아이디 형식·비밀번호 길이 위반, 알 수 없는 필드, 문자열이 아닌 값: `422`
+- 이미 있는 아이디: `409` `{ "detail": "Username already exists" }`
+
+### POST /api/auth/login  (T17)
+로그인한다. 요청 본문은 signup과 같다.
+- 응답 `200 OK`: User, 세션 쿠키 발급
+- 아이디가 없거나 비밀번호가 틀림: 둘을 구분하지 않고 `401` `{ "detail": "Invalid username or password" }` (F11)
+
+### POST /api/auth/logout  (T17)
+로그아웃한다. 서버의 세션을 삭제하고 쿠키를 지운다.
+- 응답 `204 No Content`. 이미 로그아웃한 상태여도 `204`
+
+### GET /api/auth/me  (T17)
+현재 로그인한 사용자를 확인한다. 화면이 처음 열릴 때 로그인 상태 판단에 쓴다. (F14)
+- 응답 `200 OK`: User
+- 로그인하지 않음·세션 만료: `401` `{ "detail": "Not authenticated" }`
+
+### 할 일 API의 사용자 범위 (T18)
+- 모든 `/api/tasks` 요청은 로그인 세션이 필요하다. 없으면 `401` `{ "detail": "Not authenticated" }`
+- 목록·등록·수정·삭제는 로그인한 사용자의 할 일만 대상으로 한다. (F13)
+- 다른 사용자의 할 일 `id`로 수정·삭제하면 존재 여부를 알리지 않도록 `404` `{ "detail": "Task not found" }`
+- Task 응답 형식은 바꾸지 않는다(`user_id`는 응답에 넣지 않는다).
+- 다중 사용자 전환 전의 할 일은 어느 사용자에게도 속하지 않으므로 어떤 계정에서도 보이지 않는다.
+
 ## 오류 응답
 | 상태 코드 | 의미 | 본문 |
 |---|---|---|
+| `401 Unauthorized` | 로그인 필요, 세션 만료, 로그인 실패 (T17 이후) | `{ "detail": "Not authenticated" }` 또는 `{ "detail": "Invalid username or password" }` |
+| `409 Conflict` | 이미 있는 아이디로 가입 (T16 이후) | `{ "detail": "Username already exists" }` |
 | `404 Not Found` | 해당 `id`의 할 일이 없음 | `{ "detail": "Task not found" }` |
 | `422 Unprocessable Content` | 입력 규칙 위반 | FastAPI 기본 검증 오류 형식 (`detail` 배열) |
 | `503 Service Unavailable` | DB에 접속할 수 없음 (T11 이후) | `{ "detail": "Database unavailable" }` |
