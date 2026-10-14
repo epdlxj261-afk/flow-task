@@ -99,9 +99,24 @@
   - 참고: 메모리 단계용 T06·T07 시험은 id 1부터 시작을 가정해 DB 단계에서는 그대로 쓸 수 없어, 같은 내용을 자기 행만 다루는 시험으로 다시 작성.
   - 남은 오류 없음.
 ## 5장: 서버 분리
-- [ ] T12: DB 서버 구성 후 App 서버에서 SELECT 1 확인.
+- [x] T12: DB 서버 구성 후 App 서버에서 SELECT 1 확인.
+  기록(2026-10-14): 사용자 보고로 완료 표시(사용자 요청). 저장소 변경 파일 없음.
+  - 서버 구성·실행 명령·출력은 제출되지 않았고, Claude는 분리된 서버에 접속할 수 없어 직접 확인하지 못함.
+  - 진행 중 문제(로컬 WSL): .env의 DB_PASSWORD만 바뀌고 DB 계정 비밀번호는 그대로여서 1045 Access denied → API 503.
+    사용자가 sudo mariadb에서 ALTER USER로 계정 비밀번호를 .env 값에 맞춤 → 접속·SELECT 1 성공, API(8001) /api/health·/api/tasks·/ 200 확인.
+  - 미확인: T09에서 남긴 서버 간 TLS 적용 여부.
 - [ ] T13: App 서버 코드·가상환경·환경변수·systemd 구성.
   확인: App에서 /api/health 응답.
+  진행 기록(2026-10-14): 변경 파일 deploy/task-flow-api.service, scripts/setup_app_server.sh(신규). 코드 변경 없음.
+  - 구성: 코드 /opt/task-flow, 가상환경 /opt/task-flow/.venv(root 소유), 실행 사용자 taskflow(로그인 불가 시스템 계정),
+    환경변수 /etc/task-flow/api.env(root:taskflow 640, .env.example 형식, 이미 있으면 덮어쓰지 않음), 0.0.0.0:8000, Restart=on-failure, 부팅 시 자동 시작.
+  - 순서: sudo git clone <저장소> /opt/task-flow → sudo /opt/task-flow/scripts/setup_app_server.sh(api.env 생성 후 멈춤)
+    → sudo nano /etc/task-flow/api.env(DB_HOST=DB 서버 사설 IP 등) → 스크립트 재실행(설치·시작·/api/health 확인).
+  - WSL 확인: bash -n 통과, systemd-analyze verify(경로만 로컬로 바꾼 사본) 경고 없음, sudo 없이 실행 시 거절.
+    같은 설정을 사용자 서비스로 8001번 실행(.env 없는 코드 사본 + EnvironmentFile): /api/health 200, /api/tasks 200, / 200,
+    kill -9 후 자동 재시작(새 PID, health 200), DB_PORT=3999 환경파일로 /api/tasks 503·health 200, 로그에 비밀번호 없음. 시험 서비스 삭제.
+  - 시험 한계: 사용자 서비스라 User=taskflow는 빼고, /tmp의 사본을 쓰느라 PrivateTmp·ProtectHome도 뺐다(실제 경로 /opt에서는 해당 없음).
+  - 미확인: 실제 App 서버에서의 설치와 /api/health 응답. 사용자 확인 후 완료 표시.
 - [ ] T14: Web 서버 Nginx와 정적 파일·/api 프록시 구성.
   확인: Web 주소로 등록, DB 저장, App 재시작 후 유지.
 ## 실행 기준
