@@ -144,7 +144,8 @@
   - 최종 확인(Claude, 2026-10-14): /opt main.py·/etc 서비스 파일 = 저장소 파일, App 127.0.0.1:8000만 listen.
     127.0.0.1/·/app.js·/api/health·/api/tasks 200, 127.0.0.1:8000/·/app.js 404({"detail":"Not Found"}), :8000/api/health 200.
     Web 주소(80)로 등록한 id 13이 SQL로 확인되고 App 재시작(13:07) 후 80번 목록·DB에 유지. 확인 후 id 13 삭제.
-  - 남은 오류 없음. 한계: Web·App·DB가 같은 WSL(서버 분리 아님), 브라우저 화면 확인은 사용자 미보고.
+  - 사용자 브라우저 확인(2026-10-14): http://127.0.0.1/ 정상 작동.
+  - 남은 오류 없음. 한계: Web·App·DB가 같은 WSL(서버 분리 아님).
 ## 실행 기준
 T01~T04: python3 -m http.server 5500 --bind 127.0.0.1 --directory frontend
 T05~T11: 가상환경에서 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
