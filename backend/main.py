@@ -3,22 +3,20 @@
 할 일 목록 조회(필터 포함)·등록·부분 수정·삭제를 제공한다.
 T11: 저장소를 메모리에서 MariaDB로 바꿔, API를 재시작해도 데이터가 유지된다.
 T08: 개발용 정적 서버(5500번)의 화면이 API(8000번)를 호출할 수 있도록 CORS를 허용한다.
-개발 편의: frontend/ 화면도 같은 포트에서 제공해 http://127.0.0.1:8000/ 하나로 화면과 API를 함께 쓴다.
+T14: 화면은 Web 서버의 Nginx(또는 개발용 5500번 정적 서버)가 제공하고, 이 API 서버는 /api만 제공한다.
 """
 
 from collections.abc import Iterator
 from datetime import date, datetime, timezone
-from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-from backend.database import PROJECT_ROOT, SessionLocal
+from backend.database import SessionLocal
 from backend.models import TaskRecord
 from backend.schemas import Priority, Status, Task, TaskCreate, TaskUpdate
 
@@ -137,9 +135,3 @@ def delete_task(task_id: int, db: Session = Depends(get_db)) -> Response:
     db.delete(record)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-# 화면 파일(frontend/)을 / 아래에서 제공한다. /api·/docs 경로가 먼저 등록되어 있으므로 API가 우선한다.
-# 개발용 편의 기능이며, 5장 배포에서는 Web 서버의 Nginx가 화면을 제공한다.
-FRONTEND_DIR: Path = PROJECT_ROOT / "frontend"
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

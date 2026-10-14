@@ -123,16 +123,34 @@
     스크립트가 /api/tasks 실패에도 "완료"를 출력하고 curl 대기(5초)가 DB 접속 대기(10초)보다 짧았음 → 15초 대기, 200이 아니면 오류로 종료하도록 수정.
   - 한계: App과 DB가 같은 WSL(DB_HOST=127.0.0.1)이라 PRD의 서버 분리 상태는 아님. 분리된 DB 서버 연결은 api.env의 DB_HOST 변경·재시작으로 전환.
   - 참고: 8000번을 서비스가 사용하므로 직접 uvicorn을 8000번으로 띄우려면 sudo systemctl stop task-flow-api 후 실행.
-- [ ] T14: Web 서버 Nginx와 정적 파일·/api 프록시 구성.
+- [x] T14: Web 서버 Nginx와 정적 파일·/api 프록시 구성.
   확인: Web 주소로 등록, DB 저장, App 재시작 후 유지.
+  진행 기록(2026-10-14): 변경 파일 deploy/nginx/task-flow.conf, scripts/setup_web_server.sh(신규). 코드 변경 없음(app.js는 이미 5500 외에는 /api 사용).
+  - 구성: 80번 default_server, 화면 /var/www/task-flow, /api/ → upstream(App 주소:포트, 기본 127.0.0.1:8000, 스크립트 인자로 변경),
+    숨김 파일 404, server_tokens off, 요청 본문 64k, proxy_read_timeout 30s(App의 503 전달). 기본 사이트는 sites-enabled 링크만 해제, nginx -t 실패 시 원복.
+  - WSL 확인(sudo 없이 같은 설정을 8081번 Nginx + 8001번 API로 실행): nginx -t 통과, bash -n 통과.
+    /, styles.css, app.js 200(MIME 정상), /api/health·/api/tasks 200, /.env 404, /../.env 400, /docs·없는 경로 404.
+    Web 주소로 POST 성공(id 발급) → SQL로 행 확인(제목 HTML 글자 그대로) → PATCH 200, 빈 제목 422 → App 중지 시 502 → App 재시작 후 같은 행·DOING 유지 → DELETE 204·재삭제 404·DB 0행.
+  - 사용자 실행: setup_web_server.sh가 /api/tasks 404로 실패 보고. 원인은 reload 직후 이전 설정 프로세스가 응답(/가 기본 페이지 615바이트, 24초 뒤 200 확인).
+    → 화면이 설치 파일과 같아질 때까지 최대 10초 기다린 뒤 확인하도록 수정. 80번으로 POST 201·DB 행(id 13) 확인.
+  - 사용자 요청 변경 1: 화면은 127.0.0.1(80)로만, 127.0.0.1:8000 접속 불가 → App을 Unix 소켓으로 바꿔 사용자가 적용(8000 닫힘, 80 정상 확인).
+  - 사용자 요청 변경 2: 8000번은 FastAPI(API)만 사용 → 소켓 방식 취소. App은 127.0.0.1:8000에서 /api만 제공, 화면은 Nginx(80)만 제공.
+    backend/main.py에서 frontend StaticFiles 연결(2026-10-13 개발 편의) 제거. 서비스 --host 127.0.0.1 --port 8000, Nginx upstream 기본 127.0.0.1:8000.
+    WSL 확인(8001 API + 8081 Nginx): API 직접 /·index.html·app.js·styles.css 404, /api/health·/api/tasks·/docs 200, 5500 출처 CORS preflight 200,
+    Nginx /·app.js·/api/health·/api/tasks 200, Nginx로 POST·DELETE 정상(시험 행 삭제).
+  - 사용자 적용(13:07): main.py를 /opt/task-flow에 복사, 서비스 파일 교체·재시작, setup_web_server.sh 실행 → 5/5에서 /api/tasks 502 보고.
+    원인: App 재시작 직후(약 1초) 아직 뜨는 중에 확인. 로그상 13:07:10 시작, 13:07:23부터 Nginx 경유 /api/tasks 200.
+    → 1/5에서 App /api/health를 최대 10초 기다리도록 수정(떠 있으면 즉시, 없으면 10.2초 후 경고 확인).
+  - 최종 확인(Claude, 2026-10-14): /opt main.py·/etc 서비스 파일 = 저장소 파일, App 127.0.0.1:8000만 listen.
+    127.0.0.1/·/app.js·/api/health·/api/tasks 200, 127.0.0.1:8000/·/app.js 404({"detail":"Not Found"}), :8000/api/health 200.
+    Web 주소(80)로 등록한 id 13이 SQL로 확인되고 App 재시작(13:07) 후 80번 목록·DB에 유지. 확인 후 id 13 삭제.
+  - 남은 오류 없음. 한계: Web·App·DB가 같은 WSL(서버 분리 아님), 브라우저 화면 확인은 사용자 미보고.
 ## 실행 기준
 T01~T04: python3 -m http.server 5500 --bind 127.0.0.1 --directory frontend
 T05~T11: 가상환경에서 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
-개발 편의(2026-10-13 사용자 요청 추가): 위 uvicorn 하나로 화면(http://127.0.0.1:8000/)과 API(/api)를 함께 제공한다.
-  backend/main.py가 frontend/를 StaticFiles로 / 아래에 연결하며 /api·/docs가 우선한다. 5500번 정적 서버 방식도 계속 사용할 수 있다.
-  확인: /, styles.css, app.js 200, /api/health·/api/tasks·/docs 200, 없는 경로 404, /../.env 등 경로 우회 6종 404(.env 노출 없음),
-  화면이 상대 경로 /api/tasks로 등록·조회하고 API 목록과 일치(시험 행 삭제).
-  5장 배포에서는 PRD대로 Web 서버의 Nginx가 화면을 제공한다(T14).
+개발 편의(2026-10-13 사용자 요청 추가, 2026-10-14 사용자 요청으로 제거): uvicorn이 화면도 함께 제공하던 StaticFiles 연결을 없앴다.
+  이제 8000번은 API(/api, /docs)만 제공한다. 개발 중 화면은 5500번 정적 서버(T01~T04 명령)로 열면 8000번 API를 호출한다.
+  배포에서는 PRD대로 Web 서버의 Nginx(80번)가 화면을 제공하고 /api/를 8000번으로 전달한다(T14).
 실제 존재하는 파일을 확인한 뒤 명령을 실행한다.
 ## 기록
 각 작업에 변경 파일, 실행 명령, 실제 확인 결과, 남은 오류를 기록한다.

@@ -15,8 +15,9 @@ WorkingDirectory=/opt/task-flow
 EnvironmentFile=/etc/task-flow/api.env
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=PYTHONUNBUFFERED=1
-# T14에서 Web 서버의 Nginx가 이 포트로 프록시한다. 8000번은 보안그룹·방화벽에서 Web 서버만 허용한다.
-ExecStart=/opt/task-flow/.venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8000
+# 8000번은 API(/api)만 제공한다. 화면은 같은 서버의 Nginx(80번, T14)가 제공하고 /api/를 이 포트로 전달한다.
+# Web·App 서버를 분리할 때는 --host를 0.0.0.0(또는 App 사설 IP)으로 바꾸고 방화벽에서 Web 서버만 허용한다.
+ExecStart=/opt/task-flow/.venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8000
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=true
